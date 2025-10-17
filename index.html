@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>衣櫥系統</title>
+<style>
+  :root {
+    --primary-green: #008060; --light-gray: #f0f2f5; --medium-gray: #e0e0e0;
+    --dark-gray: #555; --text-color: #333; --white: #ffffff; --danger-red: #d9534f;
+  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: var(--light-gray); margin: 0; padding: 0; color: var(--text-color); }
+  .app-container { max-width: 800px; margin: 0 auto; padding: 20px; }
+  .form-section, .search-section { background: var(--white); padding: 24px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 24px; }
+  h1, h2 { color: var(--primary-green); }
+  h2 { margin-top: 0; margin-bottom: 16px; font-size: 20px; border-left: 4px solid var(--primary-green); padding-left: 12px; }
+  .form-group, .search-group { margin-bottom: 16px; }
+  label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark-gray); }
+  input, select { width: 100%; padding: 12px; border: 1px solid var(--medium-gray); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+  button { padding: 14px; font-size: 18px; font-weight: 600; color: var(--white); background-color: var(--primary-green); border: none; border-radius: 8px; cursor: pointer; transition: background-color 0.3s ease; }
+  button:hover:not(:disabled) { background-color: #006b50; }
+  button:disabled { background-color: var(--medium-gray); cursor: not-allowed; }
+  .preview-container { margin-top: 10px; display: none; }
+  .preview-container.show { display: block; }
+  #image-preview { max-width: 150px; max-height: 150px; border-radius: 8px; object-fit: cover; border: 2px solid var(--medium-gray); display: block; }
+  #clothing-list { display: grid; gap: 16px; }
+  .clothing-item { background: var(--white); border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column; overflow: hidden; }
+  .item-image { width: 100%; height: 200px; object-fit: cover; background-color: var(--light-gray); }
+  .item-content { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+  .item-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .item-name { font-size: 18px; font-weight: 600; }
+  .item-category { background-color: var(--light-gray); color: var(--dark-gray); padding: 4px 10px; border-radius: 16px; font-size: 12px; }
+  .item-location { color: var(--dark-gray); font-size: 15px; }
+  .item-actions { display: flex; gap: 10px; margin-top: 10px; align-self: flex-end; }
+  .action-btn { background: none; border: 1px solid var(--medium-gray); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 14px; color: var(--dark-gray); transition: all 0.2s; }
+  .action-btn:hover { background-color: var(--light-gray); }
+  .delete-btn:hover { border-color: var(--danger-red); color: var(--danger-red); }
+  .debug-info { background: #fffbea; border: 1px solid #f0e68c; padding: 10px; margin-top: 10px; border-radius: 6px; font-size: 12px; color: #666; word-break: break-all; }
+</style>
+</head>
+<body>
+<div class="app-container">
+  <h1>衣櫥</h1>
+  
+  <section class="form-section">
+    <h2 id="form-title">新增衣物</h2>
+    <form id="add-form">
+      <input type="hidden" id="edit-id">
+      <input type="hidden" id="existing-image-url">
+      <div class="form-group">
+        <label for="item-name">衣物名稱</label>
+        <input type="text" id="item-name" required>
+      </div>
+      <div class="form-group">
+        <label for="item-category">分類</label>
+        <select id="item-category">
+          <option>上衣</option>
+          <option>褲子</option>
+          <option>外套</option>
+          <option>連身裙</option>
+          <option>配件</option>
+          <option>其他</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="item-location">擺放位置</label>
+        <input type="text" id="item-location" required>
+      </div>
+      <div class="form-group">
+        <label for="item-image-upload">上傳照片 (選填)</label>
+        <input type="file" id="item-image-upload" accept="image/*">
+        <div class="preview-container" id="preview-container">
+          <img id="image-preview" alt="衣物照片預覽">
+          <div class="debug-info" id="debug-info" style="display:none;"></div>
+        </div>
+      </div>
+      <button type="submit" id="add-btn" style="width:100%;">新增至衣櫥</button>
+    </form>
+  </section>
+  
+  <section class="search-section">
+    <h2>搜尋衣物</h2>
+    <div class="search-group">
+      <label for="search-name">名稱關鍵字</label>
+      <input type="text" id="search-name" placeholder="輸入衣物名稱...">
+    </div>
+    <div class="search-group">
+      <label for="search-category">分類</label>
+      <select id="search-category">
+        <option value="all">全部分類</option>
+        <option>上衣</option>
+        <option>褲子</option>
+        <option>外套</option>
+        <option>連身裙</option>
+        <option>配件</option>
+        <option>其他</option>
+      </select>
+    </div>
+  </section>
+  
+  <section id="clothing-list-section">
+    <div id="clothing-list"></div>
+  </section>
+</div>
+
+<script>
+  // =================================================================
+  // TODO: 將這裡換成你從 Google Apps Script 複製的網頁應用程式網址
+  // =================================================================
+  const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyTEha_Mb68YJWMlp0-HE8s0UBR9rQenwasi_5lnLVE4RuHnAfc5sUhvf81kGNAOHo/exec";
+  // =================================================================
+
+  // DOM 元素
+  const addForm = document.getElementById('add-form');
+  const clothingList = document.getElementById('clothing-list');
+  const addBtn = document.getElementById('add-btn');
+  const searchNameInput = document.getElementById('search-name');
+  const searchCategoryInput = document.getElementById('search-category');
+  const imageUploadInput = document.getElementById('item-image-upload');
+  const imagePreview = document.getElementById('image-preview');
+  const previewContainer = document.getElementById('preview-container');
+  const debugInfo = document.getElementById('debug-info');
+  
+  // 本地快取
+  let localClothesCache = [];
+
+  // 轉換 Google Drive 連結為可直接顯示的格式
+  function convertGoogleDriveUrl(url) {
+    if (!url || url.trim() === '') return '';
+    
+    // 提取 FILE_ID
+    let fileId = null;
+    
+    // 格式1: https://drive.google.com/file/d/FILE_ID/view
+    const match1 = url.match(/\/file\/d\/([^\/\?]+)/);
+    if (match1) {
+      fileId = match1[1];
+    }
+    
+    // 格式2: https://drive.google.com/open?id=FILE_ID
+    const match2 = url.match(/[?&]id=([^&]+)/);
+    if (match2) {
+      fileId = match2[1];
+    }
+    
+    // 格式3: https://drive.google.com/uc?id=FILE_ID
+    const match3 = url.match(/drive\.google\.com\/uc\?.*id=([^&]+)/);
+    if (match3) {
+      fileId = match3[1];
+    }
+    
+    if (fileId) {
+      // 使用縮圖 API，更穩定且有快取
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+    }
+    
+    // 如果不是 Google Drive 連結，直接返回原連結
+    return url;
+  }
+
+  // 取得表單輸入值
+  function getFormInputs() {
+    return {
+      name: document.getElementById('item-name').value.trim(),
+      category: document.getElementById('item-category').value,
+      location: document.getElementById('item-location').value.trim(),
+      id: document.getElementById('edit-id').value,
+      existingImageUrl: document.getElementById('existing-image-url').value,
+    };
+  }
+
+  // 設定按鈕狀態
+  function setButtonState(disabled, text) {
+    addBtn.disabled = disabled;
+    addBtn.textContent = text;
+  }
+
+  // 顯示圖片預覽
+  function showImagePreview(src, debugText = '') {
+    if (src) {
+      const convertedUrl = convertGoogleDriveUrl(src);
+      imagePreview.src = convertedUrl;
+      previewContainer.classList.add('show');
+      
+      if (debugText) {
+        debugInfo.textContent = debugText;
+        debugInfo.style.display = 'block';
+      }
+    } else {
+      hideImagePreview();
+    }
+  }
+
+  // 隱藏圖片預覽
+  function hideImagePreview() {
+    imagePreview.src = '';
+    previewContainer.classList.remove('show');
+    debugInfo.style.display = 'none';
+  }
+
+  // 重設表單
+  function resetForm() {
+    addForm.reset();
+    document.getElementById('edit-id').value = '';
+    document.getElementById('existing-image-url').value = '';
+    hideImagePreview();
+    document.getElementById('form-title').textContent = '新增衣物';
+    setButtonState(false, '新增至衣櫥');
+  }
+  
+  // 渲染衣物列表
+  function renderClothes(clothes) {
+    clothingList.innerHTML = '';
+    if (clothes.length === 0) {
+      clothingList.innerHTML = '<p style="text-align:center; color: #888; padding: 40px 0;">找不到符合條件的衣物。</p>';
+      return;
+    }
+    clothes.forEach(item => {
+      const el = document.createElement('div');
+      el.className = 'clothing-item';
+      el.dataset.id = item.id;
+      const placeholderImg = 'https://via.placeholder.com/400x200.png?text=No+Image';
+      
+      // 轉換 Google Drive 連結
+      const originalUrl = item.imageUrl || '';
+      const convertedUrl = originalUrl && originalUrl.trim() !== '' 
+        ? convertGoogleDriveUrl(originalUrl) 
+        : placeholderImg;
+      
+      el.innerHTML = `
+        <img src="${convertedUrl}" class="item-image" onerror="this.onerror=null; this.src='${placeholderImg}';" loading="lazy">
+        <div class="item-content">
+          <div class="item-header">
+            <span class="item-name">${item.name}</span>
+            <span class="item-category">${item.category}</span>
+          </div>
+          <div class="item-location"><strong>位置：</strong> ${item.location}</div>
+          <div class="item-actions">
+            <button class="action-btn edit-btn">編輯</button>
+            <button class="action-btn delete-btn">刪除</button>
+          </div>
+        </div>`;
+      clothingList.appendChild(el);
+    });
+  }
+
+  // 過濾並渲染
+  function filterAndRender() {
+    const nameQuery = searchNameInput.value.toLowerCase();
+    const categoryQuery = searchCategoryInput.value;
+    const filtered = localClothesCache.filter(item => 
+      item.name.toLowerCase().includes(nameQuery) && 
+      (categoryQuery === 'all' || item.category === categoryQuery)
+    );
+    renderClothes(filtered);
+  }
+
+  // 載入衣物資料
+  async function loadClothes() {
+    try {
+      const response = await fetch(SCRIPT_URL);
+      const result = await response.json();
+      if (result.success) {
+        localClothesCache = result.data || [];
+        filterAndRender();
+      } else {
+        throw new Error(result.message || '讀取失敗');
+      }
+    } catch (error) {
+      console.error('載入錯誤:', error);
+      alert('讀取資料失敗: ' + error.message);
+    }
+  }
+
+  // 圖片上傳預覽
+  imageUploadInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    
+    if (file) {
+      // 檢查檔案大小 (限制 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('圖片檔案過大，請選擇小於 5MB 的圖片');
+        imageUploadInput.value = '';
+        hideImagePreview();
+        return;
+      }
+      
+      // 檢查檔案類型
+      if (!file.type.startsWith('image/')) {
+        alert('請選擇圖片檔案');
+        imageUploadInput.value = '';
+        hideImagePreview();
+        return;
+      }
+      
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        showImagePreview(event.target.result, `檔案: ${file.name} (${(file.size/1024).toFixed(1)} KB)`);
+      };
+      reader.onerror = function() {
+        alert('圖片讀取失敗，請重試');
+        hideImagePreview();
+      };
+      reader.readAsDataURL(file);
+    } else {
+      hideImagePreview();
+    }
+  });
+
+  // 表單提交
+  addForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const inputs = getFormInputs();
+    if (!inputs.name || !inputs.location) {
+      alert('請填寫名稱和位置');
+      return;
+    }
+    
+    const isEdit = !!inputs.id;
+    setButtonState(true, isEdit ? '儲存中...' : '新增中...');
+    
+    try {
+      const payload = {
+        action: isEdit ? 'updateItem' : 'addItem',
+        name: inputs.name,
+        category: inputs.category,
+        location: inputs.location,
+      };
+      
+      if (isEdit) {
+        payload.id = inputs.id;
+        payload.existingImageUrl = inputs.existingImageUrl;
+      }
+      
+      // 處理圖片
+      const imageFile = imageUploadInput.files[0];
+      if (imageFile) {
+        const reader = new FileReader();
+        const imageData = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(imageFile);
+        });
+        payload.imageData = imageData;
+      }
+      
+      // 送出資料
+      const response = await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        alert(isEdit ? '✅ 更新成功！' : '✅ 新增成功！');
+        await loadClothes();
+        resetForm();
+      } else {
+        throw new Error(result.message || '操作失敗');
+      }
+      
+    } catch (error) {
+      console.error('提交錯誤:', error);
+      alert('操作失敗: ' + error.message);
+      setButtonState(false, isEdit ? '儲存變更' : '新增至衣櫥');
+    }
+  });
+
+  // 列表點擊事件（編輯/刪除）
+  clothingList.addEventListener('click', async function(e) {
+    const itemEl = e.target.closest('.clothing-item');
+    if (!itemEl) return;
+    
+    const itemId = itemEl.dataset.id;
+    const item = localClothesCache.find(i => i.id === itemId);
+    if (!item) return;
+
+    // 刪除
+    if (e.target.classList.contains('delete-btn')) {
+      if (!confirm(`確定要刪除「${item.name}」嗎？`)) return;
+      
+      setButtonState(true, "刪除中...");
+      try {
+        const response = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify({
+            action: 'deleteItem',
+            id: itemId,
+            imageUrl: item.imageUrl
+          }),
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+          alert('✅ 刪除成功！');
+          await loadClothes();
+          resetForm();
+        } else {
+          throw new Error(result.message || '刪除失敗');
+        }
+      } catch (error) {
+        console.error('刪除錯誤:', error);
+        alert('刪除失敗: ' + error.message);
+        setButtonState(false, '新增至衣櫥');
+      }
+    }
+    
+    // 編輯
+    else if (e.target.classList.contains('edit-btn')) {
+      document.getElementById('item-name').value = item.name;
+      document.getElementById('item-category').value = item.category;
+      document.getElementById('item-location').value = item.location;
+      document.getElementById('edit-id').value = item.id;
+      document.getElementById('existing-image-url').value = item.imageUrl || '';
+      
+      // 清空檔案選擇器
+      imageUploadInput.value = '';
+      
+      // 顯示既有圖片
+      if (item.imageUrl && item.imageUrl.trim() !== '') {
+        showImagePreview(item.imageUrl, `既有圖片`);
+      } else {
+        hideImagePreview();
+      }
+
+      document.getElementById('form-title').textContent = '編輯衣物';
+      setButtonState(false, '儲存變更');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  });
+
+  // 搜尋事件
+  searchNameInput.addEventListener('input', filterAndRender);
+  searchCategoryInput.addEventListener('change', filterAndRender);
+
+  // 初始載入
+  loadClothes();
+</script>
+</body>
+</html>
